@@ -2,15 +2,36 @@
   import { FFmpeg } from "@ffmpeg/ffmpeg";
   import { fetchFile, toBlobURL } from "@ffmpeg/util";
   import { onMount } from "svelte";
-  let videoValue ;
+  let videoUrl: string  = "https://raw.githubusercontent.com/ffmpegwasm/testdata/master/Big_Buck_Bunny_180_10s.webm"
   let ffmpeg;
   let message = '';
+  let duration = null;
+  let video: HTMLVideoElement | null = null;
+    let videoProgress : number = 0
+  onMount(() => {
+    video = document.createElement('video');
+    video.src = videoUrl;
+
+    video.onloadedmetadata = () => {
+      duration = video.duration;
+      console.log(duration)
+    };
+  });
+
   const load = async () => {
         const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/esm'
          ffmpeg = new FFmpeg();
          ffmpeg.on('log', ({ message }) => {
       message = message;
-      console.log(message);
+      const regexResult = /time=([0-9:.]+)/.exec(message);
+      if (regexResult && regexResult?.[1]) {
+        const howMuchIsDone : string = regexResult?.[1];
+        const [hours,minutes,seconds] : string[]= howMuchIsDone.split(':');
+        const doneTotalSeconds = Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
+         videoProgress = doneTotalSeconds / duration;
+        console.log(videoProgress)
+    }
+
     });
         // toBlobURL is used to bypass CORS issue, urls with the same
         // domain can be used directly.
@@ -19,6 +40,7 @@
             wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
         });
         console.log("loaded")
+        
 	};
 
   const transcode = async () => {
@@ -54,11 +76,13 @@
     ]);
     const data = await ffmpeg.readFile("output.mp4");
     console.log(data)
-    videoValue = URL.createObjectURL(new Blob([data.buffer], {type: 'video/mp4'}));
-  console.log(videoValue)
+    videoUrl = URL.createObjectURL(new Blob([data.buffer], {type: 'video/mp4'}));
+  console.log(videoUrl)
   };
 </script>
 <button on:click={load}> Load</button>
 <!-- svelte-ignore a11y-media-has-caption -->
-<video src={videoValue} controls></video><br/>
+<video src={videoUrl} controls ></video><br/>
+
 <button on:click={transcode}>Add Sub</button>
+<p>{ Math.ceil(videoProgress * 100 + 0.1) }%</p>
